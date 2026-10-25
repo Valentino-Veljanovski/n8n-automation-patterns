@@ -60,7 +60,7 @@ test("N3 verifyHmac requires a secret and a raw body", () => {
 });
 
 test("N3 verifyHmac compares with crypto.timingSafeEqual, not ===", () => {
-  const src = readFileSync(new URL("../lib/docusign/index.js", import.meta.url), "utf8");
+  const src = readFileSync(new URL("../lib/docusign/hmac.js", import.meta.url), "utf8");
   assert.ok(src.includes("timingSafeEqual"), "timingSafeEqual must be used");
   assert.equal(/digest\(\)\s*[!=]==/.test(src), false, "digest must not be compared with ===/!==");
 });
