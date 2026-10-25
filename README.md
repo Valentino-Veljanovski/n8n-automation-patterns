@@ -1,8 +1,10 @@
 # n8n-automation-patterns
 
+[![CI](https://github.com/Valentino-Veljanovski/n8n-automation-patterns/actions/workflows/ci.yml/badge.svg)](https://github.com/Valentino-Veljanovski/n8n-automation-patterns/actions/workflows/ci.yml)
+
 The patterns here come from production n8n systems I built and operate. Everything in this repository was re-implemented for it: no employer code, data, identifiers or workflow exports.
 
-Plain JavaScript helpers for the work an n8n Code node ends up doing between integrations: reading dates that arrive in four formats, cleaning text a mail client or a language model produced, turning phone numbers and email addresses into one shape, pulling a DocuSign envelope ID out of a notification, and checking a webhook signature. Each function is pure, tested, and independent of the machine's time zone. Node wrappers that read `$input` and return items sit apart from the logic, so the logic can be tested without n8n.
+Plain JavaScript helpers for the work an n8n Code node ends up doing between integrations: reading dates that arrive in four formats, cleaning text a mail client or a language model produced, turning phone numbers and email addresses into one shape, pulling a DocuSign envelope ID out of a notification, and checking a webhook signature. Each function is pure, tested, and independent of the machine's time zone. Node wrappers that read `$input` and return items will sit apart from the logic, so the logic can be tested without n8n.
 
 ## Modules
 
@@ -13,12 +15,11 @@ Plain JavaScript helpers for the work an n8n Code node ends up doing between int
 | `lib/phone` | `normalizePhone` → E.164 or null | available |
 | `lib/email` | `extractEmail`, `isValidEmail`, `normalizeEmail`, `normalizeInboundMail`, `decideRoute` | available |
 | `lib/docusign` | `extractEnvelopeId`, `verifyHmac`, `getSignatureHeader`, `parseConnectEvent` | available |
-| `lib/llm` | `parseModelJson`, `sanitizeExtraction` | available |
-| `lib/llm` | `buildPrompt`, `toolRegistry` | planned |
-| `lib/slack` | `parseInteraction` (allow-list injected), `threadContext`, `normalizeMessage`, `routeCommand`, Block Kit builders | planned |
-| `lib/graph` | Excel column mapper, `sendMailPayload`, `splitBatches`, drive crawl queue, folder ranker, result formatter, binary fan-out | planned |
-| `lib/approval` | `createApprovalGate(kind)` | planned |
-| `lib/summary` | `countBy`, `formatSlackSummary`, `dayWindow(tz)` | planned |
+| `lib/llm` | `parseModelJson`, `sanitizeExtraction`, `buildPrompt`, `TOOL_REGISTRY` | available |
+| `lib/slack` | `parseInteraction` (allow-list injected), `threadContext`, `normalizeMessage`, `routeCommand`, `checkUploadSize`, `buildHomeTab`, Block Kit builders | available |
+| `lib/graph` | `createColumnMapper`, `columnMapperFromHeader`, `safeGet`, `sendMailPayload`, `splitBatches`, drive crawl queue, `rankFolders`, `formatFileResults`, `binaryFanOut` | available |
+| `lib/approval` | `createApprovalGate(kind)` | available |
+| `lib/summary` | `countBy`, `formatSlackSummary`, `dayWindow(tz)`, `categorySummary`, `dailyStatusSummary`, `caseReport` | available |
 | `nodes/` | one file per n8n Code node; the only place `$input`, `$json` and `$('…')` appear | planned |
 | `docs/` | architecture notes | planned |
 

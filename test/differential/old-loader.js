@@ -39,7 +39,7 @@ export function requireOld(rel) {
  * @returns {string} the full text of `function name(...) { ... }`
  */
 function sliceFunction(src, name) {
-  const re = new RegExp(`(?:^|\\n)\\s*function\\s+${name}\\s*\\(`);
+  const re = new RegExp(`(?:^|\\n)\\s*(function|class)\\s+${name}\\b`);
   const m = re.exec(src);
   if (!m) {
     const constRe = new RegExp(`(?:^|\\n)\\s*(const\\s+${name}\\s*=[^\\n]*;)`);
@@ -47,8 +47,27 @@ function sliceFunction(src, name) {
     if (c) return c[1];
     throw new Error(`function ${name} not found in old source`);
   }
-  const start = m.index + m[0].indexOf("function");
-  const open = src.indexOf("{", start);
+  const start = m.index + m[0].indexOf(m[1]);
+  // The body starts at the first "{" after the parameter list; a destructured
+  // parameter like `({ a, b })` has braces of its own that must be skipped.
+  let open = -1;
+  if (m[1] === "function") {
+    const paren = src.indexOf("(", start);
+    let level = 0;
+    for (let i = paren; i < src.length; i++) {
+      if (src[i] === "(") level++;
+      else if (src[i] === ")") {
+        level--;
+        if (level === 0) {
+          open = src.indexOf("{", i);
+          break;
+        }
+      }
+    }
+  } else {
+    open = src.indexOf("{", start);
+  }
+  if (open === -1) throw new Error(`no body found for ${name}`);
   let depth = 0;
   for (let i = open; i < src.length; i++) {
     if (src[i] === "{") depth++;
@@ -69,4 +88,21 @@ export function extractFunctions(src, names) {
   const body = names.map((n) => sliceFunction(src, n)).join("\n");
   const factory = new Function(`${body}\nreturn { ${names.join(", ")} };`);
   return factory();
+}
+
+/**
+ * Names of the nodes a Code-node script reads with `$("Name")`, in order of
+ * first appearance. Lets a differential test build its context without
+ * repeating the old workflow's node names.
+ * @param {string} src
+ * @returns {string[]}
+ */
+export function nodeNamesOf(src) {
+  /** @type {string[]} */
+  const names = [];
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  for (const m of code.matchAll(/\$\(\s*["']([^"']+)["']\s*\)/g)) {
+    if (!names.includes(m[1])) names.push(m[1]);
+  }
+  return names;
 }
