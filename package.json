@@ -1,0 +1,37 @@
+{
+  "name": "n8n-automation-patterns",
+  "version": "0.1.0",
+  "description": "Pure JavaScript helpers re-implemented from production n8n Code nodes: dates, text, phone, email, DocuSign and LLM output handling.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Valentino Veljanovski",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Valentino-Veljanovski/n8n-automation-patterns"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./dates": "./lib/dates/index.js",
+    "./text": "./lib/text/index.js",
+    "./phone": "./lib/phone/index.js",
+    "./email": "./lib/email/index.js",
+    "./docusign": "./lib/docusign/index.js",
+    "./llm": "./lib/llm/index.js"
+  },
+  "scripts": {
+    "test": "node scripts/run-tests.js",
+    "test:once": "node scripts/run-tests.js --once",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^20.17.0",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.0"
+  }
+}
