@@ -9,6 +9,7 @@
  * Output:     per binary: json = { attachmentName, mimeType, fileSize (bytes
  *             from n8n's fileSize, null when absent), folderId, bookingId,
  *             customerName }, binary = { data }. No attachments → [].
+ * Reads:      $input
  * Uses:       lib/graph binaryFanOut
  * Built-ins:  none
  */

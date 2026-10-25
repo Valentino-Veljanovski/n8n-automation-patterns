@@ -7,6 +7,7 @@
  *             "Other" and "Dokument" fill the gaps)
  * Output:     one item per input item: json = { ...input json, subFolder,
  *             folderName, fileName, fullPath }
+ * Reads:      $input
  * Uses:       lib/text safePath, documentFileName
  * Built-ins:  none
  */

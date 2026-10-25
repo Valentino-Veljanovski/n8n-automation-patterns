@@ -4,8 +4,8 @@
  *             the interactions webhook (button click, modal submit, modal
  *             close, Events API event, slash command), with the access
  *             decision made against an allow-list you provide
- * Input:      the webhook item: json.body is the request body ($json.body of
- *             the Webhook node). The allow-list comes from $env
+ * Input:      the webhook item: json.body is the request body (the body
+ *             field of the Webhook node's output). The allow-list comes from $env
  *             SLACK_ALLOWED_USER_IDS (comma-separated) or from
  *             json.allowedUserIds on the item; SLACK_SUPER_ADMIN_IDS /
  *             json.superAdminIds are optional; json.regionMap maps the suffix
@@ -14,6 +14,7 @@
  * Output:     one item: json = { type, triggerType, userId, userName, allowed,
  *             role, channelId, triggerId, actionId, actionPrefix, region,
  *             callbackId, viewState, privateMetadata, requiredPermission, … }
+ * Reads:      $input, $env (SLACK_ALLOWED_USER_IDS, SLACK_SUPER_ADMIN_IDS)
  * Uses:       lib/slack parseInteraction
  * Built-ins:  none
  */

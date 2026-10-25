@@ -6,6 +6,7 @@
  * Input:      items; json._dedupKey when the key is precomputed, otherwise
  *             the key is json.projectManagerEmail + "_" + json.projectManagerName
  * Output:     the first item of every key, in input order; json gains _dedupKey
+ * Reads:      $input
  * Uses:       lib/text collapseWhitespace
  * Built-ins:  none
  */

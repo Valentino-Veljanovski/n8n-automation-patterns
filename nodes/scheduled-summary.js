@@ -13,6 +13,7 @@
  *             SUMMARY_ACTION_TYPE (REMINDER_SMS), SUMMARY_OVERDUE_DAYS (2)
  * Output:     one item: json = { date, counts: { today, tomorrow, overdue }, message }
  *             `now` is injected by the wrapper; the day is taken in the time zone.
+ * Reads:      $input, $env (SUMMARY_TIME_ZONE, SUMMARY_ACTION_TYPE, SUMMARY_OVERDUE_DAYS)
  * Uses:       lib/summary dayWindow, dailyStatusSummary; lib/dates toIsoDay
  * Built-ins:  none
  */
