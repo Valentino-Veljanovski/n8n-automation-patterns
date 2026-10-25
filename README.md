@@ -4,7 +4,7 @@
 
 The patterns here come from production n8n systems I built and operate. Everything in this repository was re-implemented for it: no employer code, data, identifiers or workflow exports.
 
-This is the code an n8n Code node ends up holding between two integrations: reading a date that arrives in four formats, cleaning the text a mail client or a language model produced, turning phone numbers and addresses into one shape, finding a DocuSign envelope ID in a notification, parsing whatever Slack sent, and counting rows for a daily summary. The logic lives in `lib/` as plain functions with tests. Ten of the recurring Code nodes are built from those functions into `dist/`, one self-contained file each, ready to paste into a Code node. The functions were used in production dispatch and Slack automation systems.
+This is the code an n8n Code node ends up holding between two integrations: reading a date that arrives in four formats, cleaning the text a mail client or a language model produced, turning phone numbers and addresses into one shape, finding a DocuSign envelope ID in a notification, parsing the five Slack interaction shapes (block actions, modal submission, modal close, slash command, event), and counting rows for a daily summary. The logic lives in `lib/` as plain functions with tests. Ten of the recurring Code nodes are built from those functions into `dist/`, one self-contained file each, ready to paste into a Code node. The patterns behind them run in production dispatch and Slack automation systems.
 
 ## Modules
 
@@ -41,12 +41,14 @@ A Code node cannot import local files, so each script in `dist/` has the library
 | `dist/scheduled-summary.js` | Run Once for All Items | the daily counts and the Slack message, also at zero input | none |
 | `dist/extraction-sanitize.js` | Run Once for Each Item | clean a model's extraction, list what could not be cleaned | none |
 | `dist/docusign-envelope.js` | Run Once for All Items | envelope ID from each notification mail | none |
-| `dist/slack-interaction.js` | Run Once for All Items | one flat object from any Slack interaction, allow-list from `$env` or the item | none |
+| `dist/slack-interaction.js` | Run Once for All Items | one flat object from the five Slack interaction shapes (block actions, modal submission, modal close, slash command, event), allow-list from `$env` or the item | none |
 | `dist/approval-gate.js` | Run Once for Each Item | hold until a preview is approved | none |
 
 None of the ten scripts needs a Node.js built-in module. Should a future script need one, its header will say so. On n8n Cloud, the Code node cannot import external npm modules and makes only the `crypto` and `moment` modules available (n8n docs, [Code node](https://docs.n8n.io/code/code-node/)). On a self-hosted instance, built-in modules are enabled with `NODE_FUNCTION_ALLOW_BUILTIN`, for example `NODE_FUNCTION_ALLOW_BUILTIN=crypto` (n8n docs, [Enable modules in Code node](https://docs.n8n.io/hosting/configuration/configuration-examples/modules-in-code-node/)).
 
-The last line of every script is `return __node.run({ $input, $json, $, $env, now: new Date() })`: that is the only place the clock is read, and `$env` is only read by the scripts whose header lists a variable.
+The header's "Reads:" line says which of n8n's variables the script touches. In Run Once for Each Item mode the code runs for every input item (n8n docs, [Code node](https://docs.n8n.io/code/code-node/)), and the two Each-Item scripts read the current item as `$json`, with `$input.item` as the fallback. In Run Once for All Items mode the code runs once, and the eight All-Items scripts read `$input.all()`, the array of the node's input items (n8n docs, [Current node input](https://docs.n8n.io/code/builtin/current-node-input/)), and never `$json`. The last line of every script is `return run({ $input, $: $, now: new Date() })`, with `$json` added in Each-Item mode: that is the only place the clock is read. The two scripts whose header lists `$env` variables read them through a small `readEnv` helper placed just above that line. When the instance blocks environment access in Code nodes, the helper catches the error and the script runs with its defaults.
+
+Every file in `dist/` holds plain function and variable declarations and that one `return`. There is no bundler export object in them, because the n8n task runner does not execute one (see [docs/runner-sandbox.md](docs/runner-sandbox.md)).
 
 ## Running the tests
 
@@ -61,7 +63,7 @@ npm test
 
 `npm test` runs the whole suite twice, once with `TZ=Pacific/Kiritimati` and once with `TZ=America/Los_Angeles`, so that no date function depends on where the machine stands. `npm run test:once` runs it a single time in the current zone.
 
-Every node script is tested in both layers: the source `run()` under `test/helpers/n8n-context.js`, which emulates `$input`, `$json` and `$('…')`, and the built `dist/` file executed as a Code-node body. Both must return the same items.
+Every node script is tested in both layers: the source `run()` under `test/helpers/n8n-context.js`, which emulates `$input`, `$json` and `$('…')`, and the built `dist/` file executed as a Code-node body. The dist file runs twice, once as a plain function in the test process and once inside a vm context modelled on the n8n task runner (`Object.defineProperty` disabled, the Object, Array and Function prototypes frozen, no Node globals). All three runs must return the same items. The model is built from what a probe in n8n 2.44.6 showed; it is modelled on the runner, not identical to it.
 
 ### Differential tests
 
@@ -77,7 +79,7 @@ INPUT_DIR=../input npm test
 npm run build
 ```
 
-`scripts/build-nodes.mjs` bundles each `nodes/<name>.js` with esbuild (a dev dependency; the package itself has none) into an IIFE, repeats the header comment at the top and appends the single `return` line. The result in `dist/` is committed. CI rebuilds it and fails when the committed files differ from the sources, so `dist/` is never stale.
+`scripts/build-nodes.mjs` bundles each `nodes/<name>.js` with esbuild (a dev dependency; the package itself has none) into one ES module, strips its `export { run }` line so that only plain declarations remain, repeats the header comment at the top and appends the `return` line the header's "Reads:" line calls for. The build fails when the export list is anything but `run`, when an import or export statement is left, or when a bundler helper that the runner cannot execute appears in the output. The result in `dist/` is committed. CI rebuilds it and fails when the committed files differ from the sources, so `dist/` is never stale.
 
 ## Licence
 

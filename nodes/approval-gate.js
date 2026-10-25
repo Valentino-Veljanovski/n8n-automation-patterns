@@ -9,16 +9,17 @@
  * Output:     one item: json = { action, message, preview }
  *             action is show_preview / hold_draft while waiting, send_email /
  *             send_reply once approved
+ * Reads:      $input, $json
  * Uses:       lib/approval createApprovalGate
  * Built-ins:  none
  */
 import { createApprovalGate, GATE_PRESETS } from "../lib/approval/index.js";
 
 /**
- * @param {{ $input: { item?: any, first: () => any } }} ctx
+ * @param {{ $input: { item?: any, first: () => any }, $json?: any }} ctx
  */
-export function run({ $input }) {
-  const state = { ...((($input.item ?? $input.first())?.json) ?? {}) };
+export function run({ $input, $json }) {
+  const state = { ...($json ?? ($input.item ?? $input.first())?.json ?? {}) };
   const kind = typeof state.gateKind === "string" && state.gateKind in GATE_PRESETS ? state.gateKind : "slack";
   delete state.gateKind;
   const gate = createApprovalGate(/** @type {keyof typeof GATE_PRESETS} */ (kind));

@@ -10,8 +10,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createN8nContext, runCodeNode } from "./helpers/n8n-context.js";
-import { buildAll, NODE_NAMES, RETURN_LINE } from "../scripts/build-nodes.mjs";
+import { blockedEnv, createN8nContext, runCodeNode, runCodeNodeLikeRunner } from "./helpers/n8n-context.js";
+import { buildAll, NODE_NAMES } from "../scripts/build-nodes.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const DIST = join(ROOT, "dist");
@@ -38,6 +38,33 @@ async function sourceRun(name) {
 function distSource(name) {
   return readFileSync(join(DIST, `${name}.js`), "utf8");
 }
+
+/** @param {string} text */
+function headerOf(text) {
+  return /^\/\*\*[\s\S]*?\*\//.exec(text)?.[0] ?? "";
+}
+
+/**
+ * What the header promises: run mode and the "Reads:" line.
+ * @param {string} text
+ */
+function headerFacts(text) {
+  const header = headerOf(text);
+  const runMode = /^\s\*\s+Run mode:\s+(Run Once for (?:All|Each) Items?)\s*$/m.exec(header)?.[1] ?? "";
+  const reads = /^\s\*\s+Reads:\s+(.*)$/m.exec(header)?.[1]?.trim() ?? "";
+  const env = /\$env \(([^)]*)\)/.exec(reads)?.[1].split(",").map((v) => v.trim()).filter(Boolean) ?? null;
+  return { header, runMode, reads, json: /\$json/.test(reads), env, builtins: /^\s\*\s+Built-ins:\s+none\s*$/m.test(header) ? [] : ["listed"] };
+}
+
+/**
+ * Objects made inside the vm context have another realm's prototypes, which
+ * strict deep equality rejects; a Code node's items are JSON anyway.
+ * @param {any} value
+ */
+const asItems = (value) => JSON.parse(JSON.stringify(value));
+
+/** Top-level return lines: a `return` at column 0. @param {string} text */
+const topLevelReturns = (text) => text.match(/^return\b.*$/gm) ?? [];
 
 const NOW = new Date("2026-05-11T06:00:00Z");
 const UUID = "6f1c2a3b-4d5e-4f60-8a9b-0c1d2e3f4a5b";
@@ -278,15 +305,17 @@ test("B1 build is idempotent and dist/ matches the sources", async () => {
 test("B1 every dist file is a self-contained Code-node body", () => {
   for (const name of SCRIPTS) {
     const text = distSource(name);
-    const header = /^\/\*\*[\s\S]*?\*\//.exec(text)?.[0] ?? "";
+    const { header, runMode } = headerFacts(text);
     assert.ok(header, `${name}: header present`);
     assert.match(header.split("\n")[1] ?? "", /^\s\*\s+Run mode:/, `${name}: run mode is the first header line`);
+    assert.ok(runMode, `${name}: run mode names one of the two modes`);
     assert.equal(/^\s*import\s/m.test(text), false, `${name}: no import`);
     const requires = [...text.matchAll(/\brequire\(\s*["']([^"']+)["']\s*\)/g)].map((m) => m[1]);
     const builtins = requires.filter((m) => /^(node:)?(crypto|buffer|util)$/.test(m));
     assert.deepEqual(requires, builtins, `${name}: only node built-ins may be required`);
-    assert.equal((text.match(/^return\b/gm) ?? []).length, 1, `${name}: exactly one top-level return`);
-    assert.ok(text.trimEnd().endsWith(RETURN_LINE), `${name}: ends with the run line`);
+    assert.equal(topLevelReturns(text).length, 1, `${name}: exactly one top-level return`);
+    const lastLine = text.trimEnd().split("\n").pop() ?? "";
+    assert.match(lastLine, /^return run\(\{ \$input, (\$json, )?\$: \$, (\$env: readEnv\(\[[^\]]+\]\), )?now: new Date\(\) \}\);$/, `${name}: ends with the mode-aware run line`);
   }
 });
 
@@ -295,8 +324,10 @@ test("B1 source run() and dist agree on every fixture", async () => {
     const run = await sourceRun(name);
     const now = new Date();
     const fromSource = run({ ...createN8nContext(FIXTURES[name]), now });
-    const fromDist = runCodeNode(distSource(name), createN8nContext(FIXTURES[name]));
-    assert.deepEqual(fromDist, fromSource, name);
+    const inProcess = runCodeNode(distSource(name), createN8nContext(FIXTURES[name]));
+    assert.deepEqual(inProcess, fromSource, `${name}: dist in this process`);
+    const likeRunner = await runCodeNodeLikeRunner(distSource(name), createN8nContext(FIXTURES[name]));
+    assert.deepEqual(asItems(likeRunner), asItems(fromSource), `${name}: dist in the runner model`);
   }
 });
 
@@ -305,4 +336,61 @@ test("B2 nodes/ and dist/ never read another node by name", () => {
   for (const file of files) {
     assert.equal(/\$\(\s*["']/.test(readFileSync(file, "utf8")), false, `${file} contains a $("...") read`);
   }
+});
+
+test("B3 dist/ holds plain declarations only: no bundler export object, no module statements", () => {
+  const DEAD_IN_RUNNER = ["defineProperty", "__defProp", "__export", "__toCommonJS", "__esModule", "__name(", "__node"];
+  for (const name of SCRIPTS) {
+    const text = distSource(name);
+    const { builtins } = headerFacts(text);
+    for (const token of DEAD_IN_RUNNER) assert.equal(text.includes(token), false, `${name}: contains ${token}`);
+    assert.equal(text.includes("import "), false, `${name}: contains an import`);
+    if (builtins.length === 0) assert.equal(text.includes("require("), false, `${name}: contains require( without a built-in in the header`);
+    assert.equal(topLevelReturns(text).length, 1, `${name}: exactly one top-level return`);
+  }
+});
+
+test("B4 dist/ uses no host global the runner context may not have", () => {
+  const HOST_GLOBALS = /\b(Buffer|process|console|TextEncoder|TextDecoder|setTimeout|setImmediate|globalThis)\b/;
+  for (const name of SCRIPTS) {
+    const hit = HOST_GLOBALS.exec(distSource(name));
+    assert.equal(hit?.[1] ?? null, null, `${name}: uses a host global`);
+  }
+});
+
+test("W1 the wrapper follows the header: $json only for Each Item, $env only when a variable is listed", () => {
+  for (const name of SCRIPTS) {
+    const text = distSource(name);
+    const { runMode, reads, json, env } = headerFacts(text);
+    assert.ok(reads, `${name}: header has a Reads: line`);
+    assert.match(reads, /^\$input(, \$json)?(, \$env \([A-Z0-9_]+(, [A-Z0-9_]+)*\))?$/, `${name}: Reads line is well-formed`);
+    const each = runMode === "Run Once for Each Item";
+    assert.equal(json, each, `${name}: Reads lists $json exactly in Each-Item mode`);
+    const lastLine = text.trimEnd().split("\n").pop() ?? "";
+    assert.equal(lastLine.includes("$json"), each, `${name}: wrapper passes $json exactly in Each-Item mode`);
+    assert.equal(lastLine.includes("$env"), env !== null, `${name}: wrapper passes $env exactly when the header lists a variable`);
+    if (env) for (const variable of env) assert.ok(lastLine.includes(`"${variable}"`), `${name}: wrapper reads ${variable}`);
+  }
+});
+
+test("W2 All-Items dist files have no $json token; files without an $env variable have no $env token", () => {
+  for (const name of SCRIPTS) {
+    const text = distSource(name);
+    const { runMode, env } = headerFacts(text);
+    if (runMode === "Run Once for All Items") assert.equal(text.includes("$json"), false, `${name}: $json in an All-Items script`);
+    if (env === null) assert.equal(text.includes("$env"), false, `${name}: $env without a listed variable`);
+  }
+});
+
+test("W2 scripts that read $env still run when env access is blocked", async () => {
+  const withEnv = SCRIPTS.filter((name) => headerFacts(distSource(name)).env !== null);
+  assert.deepEqual(withEnv, ["scheduled-summary", "slack-interaction"]);
+  const summary = createN8nContext({ items: [] });
+  summary.$env = blockedEnv();
+  const [day] = await runCodeNodeLikeRunner(distSource("scheduled-summary"), summary);
+  assert.deepEqual(asItems(day.json.counts), { today: 0, tomorrow: 0, overdue: 0 });
+  const slack = createN8nContext({ items: [{ body: FIXTURES["slack-interaction"].items[0].body, allowedUserIds: ["U0001"] }] });
+  slack.$env = blockedEnv();
+  const [interaction] = await runCodeNodeLikeRunner(distSource("slack-interaction"), slack);
+  assert.equal(interaction.json.allowed, true);
 });

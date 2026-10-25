@@ -4,7 +4,7 @@ Slack sends every interaction of an app to one URL. Button clicks and modal subm
 
 ## Extract once, decide once
 
-One Code node at the start of the router reads whichever shape arrived and returns a flat object: type, trigger type, user ID and name, channel, trigger ID, action ID, callback ID, the modal's state and private metadata, and the permission the action implies (`view` for a click, `create` for a submission or a command, `delete` when the action ID says so). Every node after it reads that object and never looks at the raw payload. A new shape, such as `view_closed`, is one more branch in that node.
+One Code node at the start of the router reads whichever shape arrived and returns a flat object: type, trigger type, user ID and name, channel, trigger ID, action ID, callback ID, the modal's state and private metadata, and the permission the action implies (`view` for a click, `create` for a submission or a command, `delete` when the action ID says so). Every node after it reads that object and never looks at the raw payload. The five shapes handled are block actions, modal submission, modal close, slash command and event; a new one is one more branch in that node.
 
 ## The allow-list is injected
 

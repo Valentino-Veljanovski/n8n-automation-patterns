@@ -5,6 +5,7 @@
  *             or an HTML/text string (the Outlook trigger's shape)
  * Output:     one item per input item: json = { ...input json, cleanedBody }
  *             An item without a usable body stops the run with a clear error.
+ * Reads:      $input
  * Uses:       lib/text stripHtml
  * Built-ins:  none
  */

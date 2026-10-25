@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   stripInvisible,
@@ -144,4 +145,16 @@ test("E16 cleanAssistantReply only strips a filler that stands alone", () => {
   assert.equal(cleanAssistantReply("This was automated with n8n."), "This was automated with n8n.");
   assert.equal(cleanAssistantReply("a\n\n\n\n\nb"), "a\n\nb");
   assert.equal(cleanAssistantReply(null), "");
+});
+
+test("E11 safeFileName counts UTF-8 bytes without the Buffer host global", () => {
+  const samples = ["abc", "Müller", "Отчёт", "日本語", "😀 Emoji", "a\uD800b"];
+  for (const s of samples) {
+    const out = safeFileName(s.repeat(60), { ext: ".pdf", maxBytes: 120 });
+    const bytes = Buffer.byteLength(out, "utf8");
+    assert.ok(bytes <= 120, `${s}: ${bytes} bytes`);
+    assert.ok(bytes > 120 - 4 * 2, `${s}: shortened no further than needed (${bytes} bytes)`);
+  }
+  const source = readFileSync(new URL("../lib/text/index.js", import.meta.url), "utf8");
+  assert.equal(/\bBuffer\b|TextEncoder/.test(source), false, "lib/text has no host global");
 });

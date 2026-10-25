@@ -39,6 +39,6 @@ test("K6 dist/ reads the clock exactly once, on the final return line", () => {
     const hits = text.match(/new Date\(\s*\)/g) ?? [];
     assert.equal(hits.length, 1, `${file}: ${hits.length} clock reads`);
     const lastLine = text.trimEnd().split("\n").pop() ?? "";
-    assert.match(lastLine, /^return __node\.run\(.*now: new Date\(\)/, file);
+    assert.match(lastLine, /^return run\(\{ .*now: new Date\(\) \}\);$/, file);
   }
 });

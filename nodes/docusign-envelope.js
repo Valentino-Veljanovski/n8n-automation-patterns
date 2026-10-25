@@ -10,6 +10,7 @@
  *             A mail without an envelope ID stops the run and names the subject,
  *             so the operator can inspect it. `source` = "loose" or "label"
  *             is the signal that DocuSign changed its template.
+ * Reads:      $input
  * Uses:       lib/docusign extractEnvelopeId
  * Built-ins:  none
  */

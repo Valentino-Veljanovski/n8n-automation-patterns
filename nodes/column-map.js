@@ -11,6 +11,7 @@
  *             appointmentDate, appointmentTime, rowIndex
  *             Text is stripped of HTML and flattened. A row without a
  *             booking ID stops the run with its row index. No input → [].
+ * Reads:      $input
  * Uses:       lib/graph safeGet; lib/text stripHtml, collapseWhitespace
  * Built-ins:  none
  */
