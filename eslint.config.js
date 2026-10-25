@@ -22,10 +22,10 @@ const n8nGlobals = {
 };
 
 export default [
-  { ignores: ["node_modules/"] },
+  { ignores: ["node_modules/", "dist/"] },
   js.configs.recommended,
   {
-    files: ["**/*.js"],
+    files: ["**/*.js", "**/*.mjs"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
