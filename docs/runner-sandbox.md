@@ -36,3 +36,15 @@ Every file in `dist/` holds plain declarations only, and one top-level `return`:
 The model is built from one probe on one version. It is modelled on the runner, not identical to it. A claim that a script runs in n8n needs a run in n8n, with the version and the date.
 
 Implemented in: scripts/build-nodes.mjs (stripExports, wrapperFor), test/helpers/n8n-context.js (runCodeNodeLikeRunner), test/nodes.test.js (B1, B3, B4, W1, W2)
+
+## Verification
+
+29 October 2026, n8n 2.45.6, self-hosted in Docker Desktop on Windows. The rebuilt `dist/` files (plain declarations, one `return`, commit 8364c08) were pasted into Code nodes of one workflow with a Manual Trigger and three branches:
+
+| Script | Mode | Input | Result |
+|---|---|---|---|
+| `dist/batch-dedup.js` | Run Once for All Items | 5 fixture items, 3 keys | 3 items (ids 1, 2, 4), each with `_dedupKey` |
+| `dist/approval-gate.js` | Run Once for Each Item | 1 email draft, `gateKind: "email"` | 1 item, `action: "hold_draft"`, preview `reply_preview` / `awaiting_approval` |
+| `dist/scheduled-summary.js` | Run Once for All Items | the trigger's single empty item | 1 item, `counts` 0/0/0, the summary message |
+
+The same three branches ran a second time with `N8N_BLOCK_ENV_ACCESS_IN_NODE=true` on the instance (checked with `printenv` inside the container) and returned identical items; the `readEnv` helper in `scheduled-summary` caught the blocked access and the script used its defaults. The seven other scripts have not been run in n8n yet. The probe above was made on 2.44.6; the new `dist/` files were only run on 2.45.6.
