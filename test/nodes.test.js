@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { blockedEnv, createN8nContext, runCodeNode, runCodeNodeLikeRunner } from "./helpers/n8n-context.js";
+import { ALL_ITEMS, EACH_ITEM, blockedEnv, createN8nContext, runCodeNode, runCodeNodeInMode, runCodeNodeLikeRunner, validateRunForEachSource } from "./helpers/n8n-context.js";
 import { buildAll, NODE_NAMES } from "../scripts/build-nodes.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -113,7 +113,13 @@ const FIXTURES = {
     ],
   },
   "docusign-envelope": { items: [{ subject: "Completed: Example", body: { content: `<a href="https://x.example/?a=1&amp;m=${UUID}">Review</a>` } }] },
-  "extraction-sanitize": { items: [{ output: { customerName: " Max\u200B ", customerEmail: "Max@Example.DE", customerPhone: "089 1234567", appointmentDate: "11.05.2026" } }] },
+  // Two items, so that Each-Item mode shows: one clean extraction, one with an issue.
+  "extraction-sanitize": {
+    items: [
+      { output: { customerName: " Max\u200B ", customerEmail: "Max@Example.DE", customerPhone: "089 1234567", appointmentDate: "11.05.2026" } },
+      { customerName: "Eva Beispiel", customerEmail: "nope", customerPhone: "089 7654321", appointmentDate: "12.05.2026" },
+    ],
+  },
   "folder-path": { items: [{ customerName: "Müller / Mayer", bookingId: "SRL-1", serviceType: "Umzug", documentType: "Signed" }] },
   "html-strip": { items: [{ body: { contentType: "html", content: "<p>Hallo &amp; Grüße</p>" } }, { body: "<b>plain</b>" }, { body: { content: "x" } }] },
   "scheduled-summary": {
@@ -243,15 +249,15 @@ test("E10 scheduled-summary: a summary item even at zero input, with an injected
   assert.throws(() => run(createN8nContext({ items: [] })), /now/);
 });
 
-test("extraction-sanitize: cleans the first item and reports issues", async () => {
+test("extraction-sanitize: returns one cleaned item for the current item and reports issues", async () => {
   const run = await sourceRun("extraction-sanitize");
-  const [out] = run(createN8nContext(FIXTURES["extraction-sanitize"]));
+  const out = run(createN8nContext(FIXTURES["extraction-sanitize"]));
   assert.equal(out.json.customerName, "Max");
   assert.equal(out.json.customerEmail, "max@example.de");
   assert.equal(out.json.customerPhone, "+49891234567");
   assert.equal(out.json.appointmentDate, "2026-05-11");
   assert.deepEqual(out.json._issues, []);
-  const [bad] = run(createN8nContext({ items: [{ customerEmail: "nope" }] }));
+  const bad = run(createN8nContext({ items: [{ customerEmail: "nope" }] }));
   assert.deepEqual(bad.json._issues, [{ field: "customerEmail", kind: "email", value: "nope" }]);
 });
 
@@ -279,13 +285,13 @@ test("slack-interaction: allow-list from $env or the item, never a literal", asy
 
 test("approval-gate: builds a preview, holds, and releases an approved state", async () => {
   const run = await sourceRun("approval-gate");
-  const [held] = run(createN8nContext(FIXTURES["approval-gate"]));
+  const held = run(createN8nContext(FIXTURES["approval-gate"]));
   assert.equal(held.json.action, "hold_draft");
   assert.equal(held.json.preview.type, "reply_preview");
   assert.equal(held.json.preview.status, "awaiting_approval");
-  const [sent] = run(createN8nContext({ items: [{ ...held.json.preview, status: "approved", gateKind: "email" }] }));
+  const sent = run(createN8nContext({ items: [{ ...held.json.preview, status: "approved", gateKind: "email" }] }));
   assert.equal(sent.json.action, "send_reply");
-  const [slack] = run(createN8nContext({ items: [{ recipient: "x", subject: "s", body: "b" }] }));
+  const slack = run(createN8nContext({ items: [{ recipient: "x", subject: "s", body: "b" }] }));
   assert.equal(slack.json.action, "show_preview");
   assert.equal(slack.json.preview.type, "email_preview");
 });
@@ -393,4 +399,74 @@ test("W2 scripts that read $env still run when env access is blocked", async () 
   slack.$env = blockedEnv();
   const [interaction] = await runCodeNodeLikeRunner(distSource("slack-interaction"), slack);
   assert.equal(interaction.json.allowed, true);
+});
+
+for (const name of SCRIPTS) {
+  test(`M1 dist/${name}.js runs in the mode its header names`, async () => {
+    const text = distSource(name);
+    const { runMode } = headerFacts(text);
+    const run = await sourceRun(name);
+    const fixture = FIXTURES[name];
+    const out = asItems(await runCodeNodeInMode(text, runMode, fixture));
+    if (runMode === EACH_ITEM) {
+      // One run per input item; each returns a single item, paired with its input.
+      const expected = fixture.items.map((item, index) => ({ json: run({ ...createN8nContext({ items: [item] }), now: new Date() }).json, pairedItem: { item: index } }));
+      assert.equal(out.length, fixture.items.length, `${name}: one output item per input item`);
+      assert.deepEqual(out, asItems(expected));
+    } else {
+      assert.equal(runMode, ALL_ITEMS);
+      assert.deepEqual(out, asItems(run({ ...createN8nContext(fixture), now: new Date() })));
+    }
+  });
+}
+
+test("M2 Each-Item scripts hold no All-Items accessor of $input, not even in a comment", () => {
+  // n8n rejects the source text of an Each-Item Code node that matches
+  // /\$input\.(first|last|all|itemMatching)/ (tag n8n@2.45.6,
+  // packages/nodes-base/nodes/Code/JsCodeValidator.ts, line 9). `.first()` was
+  // observed in n8n 2.45.6; the docs list first(), last() and all() as
+  // All-Items accessors: https://docs.n8n.io/code/builtin/current-node-input/
+  const each = SCRIPTS.filter((name) => headerFacts(distSource(name)).runMode === EACH_ITEM);
+  assert.deepEqual(each, ["approval-gate", "extraction-sanitize"]);
+  const hits = [];
+  for (const name of each) {
+    for (const file of [`dist/${name}.js`, `nodes/${name}.js`]) {
+      const hit = /\$input\.(first|last|all|itemMatching)/.exec(readFileSync(join(ROOT, file), "utf8"));
+      if (hit) hits.push(`${file}: ${hit[0]}`);
+    }
+  }
+  assert.deepEqual(hits, []);
+});
+
+test("M3 slack-interaction is an All-Items script: $input.first() is allowed there and must stay", async () => {
+  const text = distSource("slack-interaction");
+  assert.equal(headerFacts(text).runMode, ALL_ITEMS);
+  assert.ok(text.includes("$input.first("), "reads the webhook item with $input.first()");
+  const [out] = await runCodeNodeInMode(text, ALL_ITEMS, FIXTURES["slack-interaction"]);
+  assert.equal(out.json.allowed, true);
+  // The same text in an Each-Item node is what n8n refuses.
+  await assert.rejects(runCodeNodeInMode(text, EACH_ITEM, FIXTURES["slack-interaction"]), /Can't use \.first\(\) here \[line \d+, for item 0\]/);
+});
+
+test("M4 the Each-Item source check rejects the four All-Items accessors and nothing else of $input", () => {
+  for (const method of ["first", "last", "all", "itemMatching"]) {
+    assert.throws(() => validateRunForEachSource(`const x = $input.${method}();\nreturn x;`), { message: `Can't use .${method}() here [line 1, for item 0]` });
+  }
+  assert.doesNotThrow(() => validateRunForEachSource("return { json: $input.item.json };"));
+  assert.doesNotThrow(() => validateRunForEachSource("return { json: $json };"));
+});
+
+test("M5 Each-Item scripts read the current item from $json, with $input.item as the only fallback, and return one item", async () => {
+  for (const name of ["approval-gate", "extraction-sanitize"]) {
+    const run = await sourceRun(name);
+    const current = { recipient: "current@example.de", customerEmail: "Current@Example.DE" };
+    const other = { recipient: "other@example.de", customerEmail: "Other@Example.DE" };
+    const picked = (/** @type {any} */ out) => out.json.preview?.recipient ?? out.json.customerEmail;
+    const fromJson = run({ $input: { item: { json: other } }, $json: current });
+    assert.equal(Array.isArray(fromJson), false, `${name}: returns a single item, not an array`);
+    assert.equal(picked(fromJson).toLowerCase(), "current@example.de", `${name}: $json wins`);
+    const fromItem = run({ $input: { item: { json: current } } });
+    assert.equal(picked(fromItem).toLowerCase(), "current@example.de", `${name}: $input.item is the fallback`);
+    assert.doesNotThrow(() => run({ $input: {} }), `${name}: no item at all is an empty input, not a crash`);
+  }
 });

@@ -17,10 +17,10 @@
 import { sanitizeExtraction } from "../lib/llm/index.js";
 
 /**
- * @param {{ $input: { item?: any, first: () => any }, $json?: any }} ctx
+ * @param {{ $input: { item?: any }, $json?: any }} ctx
  */
 export function run({ $input, $json }) {
-  const json = $json ?? ($input.item ?? $input.first())?.json ?? {};
+  const json = $json ?? $input.item?.json ?? {};
   const { values, issues } = sanitizeExtraction(json);
-  return [{ json: { ...values, _issues: issues } }];
+  return { json: { ...values, _issues: issues } };
 }

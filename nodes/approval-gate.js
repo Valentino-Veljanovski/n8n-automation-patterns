@@ -16,14 +16,14 @@
 import { createApprovalGate, GATE_PRESETS } from "../lib/approval/index.js";
 
 /**
- * @param {{ $input: { item?: any, first: () => any }, $json?: any }} ctx
+ * @param {{ $input: { item?: any }, $json?: any }} ctx
  */
 export function run({ $input, $json }) {
-  const state = { ...($json ?? ($input.item ?? $input.first())?.json ?? {}) };
+  const state = { ...($json ?? $input.item?.json ?? {}) };
   const kind = typeof state.gateKind === "string" && state.gateKind in GATE_PRESETS ? state.gateKind : "slack";
   delete state.gateKind;
   const gate = createApprovalGate(/** @type {keyof typeof GATE_PRESETS} */ (kind));
   const preview = state.type ? state : gate.buildPreview(state);
   const next = gate.nextAction(preview);
-  return [{ json: { ...next, preview } }];
+  return { json: { ...next, preview } };
 }

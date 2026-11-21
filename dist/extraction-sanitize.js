@@ -531,8 +531,8 @@ var TOOL_REGISTRY = Object.freeze([
 
 // nodes/extraction-sanitize.js
 function run({ $input, $json }) {
-  const json = $json ?? ($input.item ?? $input.first())?.json ?? {};
+  const json = $json ?? $input.item?.json ?? {};
   const { values, issues } = sanitizeExtraction(json);
-  return [{ json: { ...values, _issues: issues } }];
+  return { json: { ...values, _issues: issues } };
 }
 return run({ $input, $json, $: $, now: new Date() });

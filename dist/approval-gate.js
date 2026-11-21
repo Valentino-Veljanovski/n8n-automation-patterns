@@ -73,7 +73,7 @@ function createApprovalGate(kind, overrides = {}) {
 
 // nodes/approval-gate.js
 function run({ $input, $json }) {
-  const state = { ...$json ?? ($input.item ?? $input.first())?.json ?? {} };
+  const state = { ...$json ?? $input.item?.json ?? {} };
   const kind = typeof state.gateKind === "string" && state.gateKind in GATE_PRESETS ? state.gateKind : "slack";
   delete state.gateKind;
   const gate = createApprovalGate(
@@ -82,6 +82,6 @@ function run({ $input, $json }) {
   );
   const preview = state.type ? state : gate.buildPreview(state);
   const next = gate.nextAction(preview);
-  return [{ json: { ...next, preview } }];
+  return { json: { ...next, preview } };
 }
 return run({ $input, $json, $: $, now: new Date() });
