@@ -79,6 +79,19 @@ The rule that follows:
 - The tests run every dist file in the mode its header names. For Each Item that means the source check above, one run per input item, and the result check.
 - Every run in n8n records the mode from the node itself, next to the version and the date. A run in another mode is not a verification.
 
-Both scripts were fixed on 21 November 2026. Their run in n8n in Run Once for Each Item mode has not happened yet; it is recorded here once it has.
+Both scripts were fixed on 21 November 2026 (commit 66d76bb).
+
+### Verification of the Each-Item scripts
+
+21 November 2026, n8n 2.45.6, self-hosted in Docker Desktop on Windows. The `dist/` files of commit 66d76bb were pasted into Code nodes of the same workflow. The mode was read from each node.
+
+| Script | Mode | Input | Result |
+|---|---|---|---|
+| `dist/approval-gate.js` | Run Once for Each Item | 1 email draft (`recipient`, `subject`, `body`), `gateKind: "email"` | 1 item, `action: "hold_draft"`, the manual-approval message, preview `reply_preview` / `awaiting_approval` with the draft's three fields and the actions `approve_send`, `decline`, `manual_review`; no `gateKind` in the preview |
+| `dist/extraction-sanitize.js` | Run Once for Each Item | 2 items: one extraction under `json.output`, one directly in `json` with an invalid email | 2 items, equal field for field to what the test expects: the first clean with an empty `_issues`, the second with `customerEmail: ""` and one issue of kind `email` |
+
+The same `dist/extraction-sanitize.js` node with the same two input items in the default mode, Run Once for All Items, returned 1 item, the first extraction only. That is the wrong mode for this script: it does not fail there, it drops every item after the first.
+
+Neither of the two scripts was run with `N8N_BLOCK_ENV_ACCESS_IN_NODE=true`. Neither reads `$env`.
 
 Implemented in: nodes/approval-gate.js, nodes/extraction-sanitize.js, test/helpers/n8n-context.js (validateRunForEachSource, runCodeNodeInMode), test/nodes.test.js (M1 to M5)

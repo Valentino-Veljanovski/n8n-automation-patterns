@@ -4,7 +4,7 @@
 
 The patterns here come from production n8n systems I built and operate. Everything in this repository was re-implemented for it: no employer code, data, identifiers or workflow exports.
 
-This is the code an n8n Code node ends up holding between two integrations: reading a date that arrives in four formats, cleaning the text a mail client or a language model produced, turning phone numbers and addresses into one shape, finding a DocuSign envelope ID in a notification, parsing the five Slack interaction shapes (block actions, modal submission, modal close, slash command, event), and counting rows for a daily summary. The logic lives in `lib/` as plain functions with tests. Ten of the recurring Code nodes are built from those functions into `dist/`, one self-contained file each, built to be pasted into a Code node; two of them have been run in n8n in their own run mode (see Using a script in n8n). The patterns behind them run in production dispatch and Slack automation systems.
+This is the code an n8n Code node ends up holding between two integrations: reading a date that arrives in four formats, cleaning the text a mail client or a language model produced, turning phone numbers and addresses into one shape, finding a DocuSign envelope ID in a notification, parsing the five Slack interaction shapes (block actions, modal submission, modal close, slash command, event), and counting rows for a daily summary. The logic lives in `lib/` as plain functions with tests. Ten of the recurring Code nodes are built from those functions into `dist/`, one self-contained file each, built to be pasted into a Code node; four of them have been run in n8n in their own run mode (see Using a script in n8n). The patterns behind them run in production dispatch and Slack automation systems.
 
 ## Modules
 
@@ -50,7 +50,9 @@ The header's "Reads:" line says which of n8n's variables the script touches. In 
 
 Verified in n8n 2.45.6 (self-hosted, Docker Desktop on Windows) on 29 October 2026: `dist/batch-dedup.js` (Run Once for All Items, five fixture items in, three out) and `dist/scheduled-summary.js` (Run Once for All Items, no rows in, the zero-count summary out) ran unchanged. Both ran again with `N8N_BLOCK_ENV_ACCESS_IN_NODE=true` set on the instance and returned the same items; `scheduled-summary` fell back to its defaults without an error. The six other All-Items scripts are built the same way but have not been run in n8n yet.
 
-A first note here said `dist/approval-gate.js` had run in Run Once for Each Item mode. It had not: the node was in the default mode. In Each Item mode n8n 2.45.6 rejected both Each-Item scripts before running them (`Can't use .first() here`). They were fixed on 21 November 2026; the run in n8n is recorded below once it has happened.
+A first note here said `dist/approval-gate.js` had run in Run Once for Each Item mode. It had not: the node was in the default mode. In Each Item mode n8n 2.45.6 rejected both Each-Item scripts before running them (`Can't use .first() here`). They were fixed on 21 November 2026.
+
+Verified in n8n 2.45.6 (self-hosted, Docker Desktop on Windows) on 21 November 2026, with the mode read from the node: `dist/approval-gate.js` (Run Once for Each Item, one email draft in, one item with `hold_draft` out) and `dist/extraction-sanitize.js` (Run Once for Each Item, two extractions in, two cleaned items out, the second with one entry in `_issues`) ran unchanged. These two were not run with `N8N_BLOCK_ENV_ACCESS_IN_NODE=true`.
 
 Every file in `dist/` holds plain function and variable declarations and that one `return`. There is no bundler export object in them, because the n8n task runner does not execute one (see [docs/runner-sandbox.md](docs/runner-sandbox.md)).
 
