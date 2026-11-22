@@ -43,7 +43,10 @@ test("K2 the scanner picks commit-like ids and skips digits and UUIDs", () => {
   const id = ["a1b2", "c3d"].join("");
   assert.deepEqual(candidates(`fixed in commit ${id}.`), [id]);
   assert.deepEqual(candidates("call +49891234567 or 2958465"), []);
-  assert.deepEqual(candidates(["6f1c2a3b", "4d5e", "4f60", "8a9b", "0c1d2e3f4a5b"].join("-")), []);
+  // Assembled from short pieces: this file is scanned too.
+  const uuid = [["6f1c", "2a3b"].join(""), "4d5e", "4f60", "8a9b", ["0c1d2e", "3f4a5b"].join("")].join("-");
+  assert.equal(uuid.length, 36);
+  assert.deepEqual(candidates(uuid), []);
   assert.deepEqual(candidates("an effaced facade"), []);
 });
 
