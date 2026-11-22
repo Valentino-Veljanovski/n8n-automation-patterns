@@ -39,7 +39,7 @@ Implemented in: scripts/build-nodes.mjs (stripExports, wrapperFor), test/helpers
 
 ## Verification
 
-29 October 2026, n8n 2.45.6, self-hosted in Docker Desktop on Windows. The rebuilt `dist/` files (plain declarations, one `return`, commit 8364c08) were pasted into Code nodes of one workflow with a Manual Trigger and three branches:
+29 October 2026, n8n 2.45.6, self-hosted in Docker Desktop on Windows. The rebuilt `dist/` files (plain declarations, one `return`, as built on 25 October 2026 in the commit "runner-safe dist build, mode-aware wrapper") were pasted into Code nodes of one workflow with a Manual Trigger and three branches:
 
 | Script | Mode | Input | Result |
 |---|---|---|---|
@@ -79,11 +79,11 @@ The rule that follows:
 - The tests run every dist file in the mode its header names. For Each Item that means the source check above, one run per input item, and the result check.
 - Every run in n8n records the mode from the node itself, next to the version and the date. A run in another mode is not a verification.
 
-Both scripts were fixed on 21 November 2026 (commit 66d76bb).
+Both scripts were fixed on 21 November 2026 (commit "Each-Item scripts pass n8n's run-mode validation").
 
 ### Verification of the Each-Item scripts
 
-21 November 2026, n8n 2.45.6, self-hosted in Docker Desktop on Windows. The `dist/` files of commit 66d76bb were pasted into Code nodes of the same workflow. The mode was read from each node.
+21 November 2026, n8n 2.45.6, self-hosted in Docker Desktop on Windows. The `dist/` files of that day's commit "Each-Item scripts pass n8n's run-mode validation" were pasted into Code nodes of the same workflow. The mode was read from each node.
 
 | Script | Mode | Input | Result |
 |---|---|---|---|
